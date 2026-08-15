@@ -7,9 +7,11 @@ import { createClient } from '@/lib/supabase'
 const S = { navy:'#0F2044', brand:'#FF6B35', border:'#DCE4F5', muted:'#8898B8', off:'#F7F9FF', error:'#dc2626' }
 
 export default function RegisterPage() {
-  const router   = useRouter()
-  const supabase = createClient()
-  const [form, setForm] = useState({ name:'', email:'', password:'', confirm:'', phone:'', collegeId:'', courseId:'', semester:'' })
+  const router = useRouter()
+  const [form, setForm] = useState({
+    name:'', email:'', password:'', confirm:'',
+    phone:'', collegeId:'', courseId:'', semester:''
+  })
   const [colleges, setColleges] = useState([])
   const [courses,  setCourses]  = useState([])
   const [loading,  setLoading]  = useState(false)
@@ -17,6 +19,7 @@ export default function RegisterPage() {
   const set = (k,v) => setForm(f => ({...f,[k]:v}))
 
   useEffect(() => {
+    const supabase = createClient()
     const fetchData = async () => {
       const [{ data: cols }, { data: crs }] = await Promise.all([
         supabase.from('colleges').select('id, name').order('name'),
@@ -46,63 +49,87 @@ export default function RegisterPage() {
     if (err) return setError(err)
     setLoading(true)
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: form.email, password: form.password,
-      options: { data: { full_name: form.name.trim() } }
-    })
+    try {
+      const supabase = createClient()
 
-    if (signUpError) {
-      setLoading(false)
-      if (signUpError.message.includes('already registered'))
-        return setError('This email is already registered. Please login instead.')
-      return setError(signUpError.message)
-    }
-
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: form.email, password: form.password
-    })
-
-    if (signInError) { setLoading(false); return setError('Account created! Please login.') }
-
-    const userId = signUpData?.user?.id
-    if (userId) {
-      await supabase.from('users').insert({
-        id: userId, name: form.name.trim(), phone: form.phone.trim(),
-        college_id: form.collegeId, course_id: form.courseId,
-        current_semester: parseInt(form.semester),
+      // 1. Create auth account
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email, password: form.password,
+        options: { data: { full_name: form.name.trim() } }
       })
-    }
 
-    setLoading(false)
-    router.push('/dashboard')
-    router.refresh()
+      if (signUpError) {
+        setLoading(false)
+        if (signUpError.message.includes('already registered'))
+          return setError('This email is already registered. Please login instead.')
+        return setError(signUpError.message)
+      }
+
+      // 2. Sign in to get session
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email, password: form.password
+      })
+
+      if (signInError) {
+        setLoading(false)
+        return setError('Account created! Please login.')
+      }
+
+      // 3. Save profile — user is now authenticated
+      const userId = signUpData?.user?.id
+      if (userId) {
+        const { error: insertError } = await supabase.from('users').insert({
+          id:               userId,
+          name:             form.name.trim(),
+          phone:            form.phone.trim(),
+          college_id:       form.collegeId,
+          course_id:        form.courseId,
+          current_semester: parseInt(form.semester),
+        })
+        if (insertError) console.error('Profile save error:', insertError)
+      }
+
+      setLoading(false)
+      router.push('/dashboard')
+    } catch (err) {
+      setLoading(false)
+      setError('Something went wrong. Please try again.')
+    }
   }
 
   const I = { width:'100%', padding:'11px 14px', borderRadius:8, fontSize:14, border:`1.5px solid ${S.border}`, outline:'none', color:S.navy, background:'#fff', marginBottom:'0.9rem', display:'block' }
   const L = { fontSize:11, fontWeight:700, color:S.muted, display:'block', marginBottom:'.3rem', textTransform:'uppercase', letterSpacing:'.06em' }
-  const Sec = ({ children }) => <div style={{ fontSize:11, fontWeight:700, color:S.brand, letterSpacing:'.08em', textTransform:'uppercase', margin:'.5rem 0 .75rem' }}>{children}</div>
 
   return (
     <div style={{ minHeight:'90vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'2rem 1rem', background:S.off }}>
       <div style={{ background:'#fff', border:`1px solid ${S.border}`, borderRadius:16, padding:'2.5rem 2rem', maxWidth:480, width:'100%', boxShadow:'0 4px 24px rgba(15,32,68,0.07)' }}>
 
         <div style={{ textAlign:'center', marginBottom:'1.75rem' }}>
-          <div style={{ fontSize:22, fontWeight:900, color:S.navy }}>DU<span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:S.brand, margin:'0 2px 10px' }}/>Update</div>
+          <div style={{ fontSize:22, fontWeight:900, color:S.navy }}>
+            DU<span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%', background:S.brand, margin:'0 2px 10px' }}/>Update
+          </div>
           <div style={{ fontSize:19, fontWeight:800, color:S.navy, marginTop:'.5rem' }}>Create Your Account</div>
           <div style={{ fontSize:13, color:S.muted, marginTop:'.35rem' }}>
-            Already registered?{' '}<Link href="/login" style={{ color:S.brand, fontWeight:700 }}>Login here</Link>
+            Already registered?{' '}
+            <Link href="/login" style={{ color:S.brand, fontWeight:700 }}>Login here</Link>
           </div>
         </div>
 
-        {error && <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', fontSize:13, color:S.error, marginBottom:'1.25rem' }}>{error}</div>}
+        {error && (
+          <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', fontSize:13, color:S.error, marginBottom:'1.25rem' }}>
+            ⚠️ {error}
+          </div>
+        )}
 
-        <Sec>Personal Details</Sec>
+        {/* Personal */}
+        <div style={{ fontSize:11, fontWeight:700, color:S.brand, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'.75rem' }}>Personal Details</div>
         <label style={L}>Full Name</label>
         <input style={I} type="text" placeholder="e.g. Rahul Sharma" value={form.name} onChange={e => set('name', e.target.value)} />
         <label style={L}>Mobile Number</label>
         <input style={I} type="tel" placeholder="10-digit mobile number" value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g,'').slice(0,10))} />
 
-        <Sec>Academic Details</Sec>
+        {/* Academic */}
+        <div style={{ fontSize:11, fontWeight:700, color:S.brand, letterSpacing:'.08em', textTransform:'uppercase', margin:'.5rem 0 .75rem' }}>Academic Details</div>
         <label style={L}>College</label>
         <select style={I} value={form.collegeId} onChange={e => set('collegeId', e.target.value)}>
           <option value="">Select your college</option>
@@ -119,7 +146,8 @@ export default function RegisterPage() {
           {[1,2,3,4,5,6].map(s => <option key={s} value={s}>Semester {s}</option>)}
         </select>
 
-        <Sec>Account Details</Sec>
+        {/* Account */}
+        <div style={{ fontSize:11, fontWeight:700, color:S.brand, letterSpacing:'.08em', textTransform:'uppercase', margin:'.5rem 0 .75rem' }}>Account Details</div>
         <label style={L}>Email Address</label>
         <input style={I} type="email" placeholder="your@email.com" value={form.email} onChange={e => set('email', e.target.value)} />
         <label style={L}>Password</label>
@@ -127,7 +155,7 @@ export default function RegisterPage() {
         <label style={L}>Confirm Password</label>
         <input style={{...I, marginBottom:'1.5rem'}} type="password" placeholder="Re-enter password" value={form.confirm} onChange={e => set('confirm', e.target.value)} onKeyDown={e => e.key==='Enter' && handleRegister()} />
 
-        <button onClick={handleRegister} disabled={loading} style={{ width:'100%', padding:'13px', borderRadius:9, border:'none', background:S.brand, color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', opacity:loading?.7:1 }}>
+        <button onClick={handleRegister} disabled={loading} style={{ width:'100%', padding:'13px', borderRadius:9, border:'none', background:S.brand, color:'#fff', fontSize:15, fontWeight:700, cursor: loading ? 'not-allowed' : 'pointer', opacity:loading?.7:1 }}>
           {loading ? 'Creating your account...' : 'Register Now →'}
         </button>
         <p style={{ fontSize:11, color:S.muted, textAlign:'center', marginTop:'1rem', lineHeight:1.5 }}>
