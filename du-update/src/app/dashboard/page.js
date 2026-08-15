@@ -2,7 +2,10 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabaseServer'
 import Link from 'next/link'
 
-const S = { navy:'#0F2044', brand:'#FF6B35', border:'#DCE4F5', muted:'#8898B8', off:'#F7F9FF' }
+const S = {
+  navy: '#0F2044', brand: '#FF6B35',
+  border: '#DCE4F5', muted: '#8898B8', off: '#F7F9FF'
+}
 
 export const metadata = { title: 'Dashboard — DU Update' }
 
@@ -11,84 +14,147 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch user profile
+  // Fetch full profile with college and course details
   const { data: profile } = await supabase
     .from('users')
-    .select('*, colleges(name), courses(name, short_name)')
+    .select(`
+      name, current_semester, is_premium,
+      colleges ( name ),
+      courses ( id, name, short_name )
+    `)
     .eq('id', user.id)
     .single()
 
-  const isPremium   = profile?.is_premium ?? false
-  const courseName  = profile?.courses?.short_name ?? 'Not set'
-  const collegeName = profile?.colleges?.name ?? 'Not set'
-  const sem         = profile?.current_semester ?? '—'
+  // If profile not complete → send to complete profile
+  const isProfileComplete = profile?.colleges && profile?.courses && profile?.current_semester
+  if (!isProfileComplete) redirect('/onboarding')
+
+  const name       = profile?.name ?? user.email
+  const firstName  = name.split(' ')[0]
+  const college    = profile?.colleges?.name ?? ''
+  const course     = profile?.courses?.short_name ?? ''
+  const courseId   = profile?.courses?.id ?? ''
+  const sem        = profile?.current_semester ?? ''
+  const isPremium  = profile?.is_premium ?? false
+
+  // Build course slug for links
+  // We'll use courseId directly in the link for now
+  const semLink = `/courses/${courseId}/${sem}`
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '3rem 1.5rem' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '2.5rem 1.5rem' }}>
 
-      {/* Welcome */}
-      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: '.25rem' }}>
-        Welcome back, {user.user_metadata?.full_name?.split(' ')[0] ?? 'Student'} 👋
-      </h1>
-      <p style={{ fontSize: 14, color: S.muted, marginBottom: '2rem' }}>
-        {courseName} · Semester {sem} · {collegeName}
-      </p>
-
-      {/* Premium banner */}
-      {!isPremium && (
-        <div style={{ background: '#FFF8F5', border: `1.5px solid ${S.brand}`,
-          borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '2rem',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: S.navy }}>
-              Upgrade to Premium — ₹499/year
-            </div>
-            <div style={{ fontSize: 13, color: S.muted }}>
-              Unlock all notes, PYQs, attendance tracker, and timetable.
-            </div>
+      {/* Welcome banner */}
+      <div style={{ background: S.navy, borderRadius: 14,
+        padding: '1.5rem 2rem', marginBottom: '2rem',
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>
+            Welcome back, {firstName}! 👋
           </div>
-          <Link href="/pricing" style={{
-            background: S.brand, color: '#fff', padding: '9px 18px',
-            borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap'
-          }}>Upgrade Now</Link>
+          <div style={{ fontSize: 14, color: '#A0B4D6', marginTop: '.3rem' }}>
+            {college} · {course} · Semester {sem}
+          </div>
         </div>
-      )}
-
-      {/* Quick links */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        {[
-          { label:'My Notes',         href:'/courses',              icon:'📝', desc:'Browse your course notes'    },
-          { label:'Attendance',        href:'/dashboard/attendance', icon:'✅', desc:'Track subject attendance'    },
-          { label:'Timetable',         href:'/dashboard/timetable',  icon:'📅', desc:'Your weekly schedule'        },
-          { label:'Bookmarks',         href:'/dashboard/bookmarks',  icon:'🔖', desc:'Saved notes and PYQs'        },
-        ].map(item => (
-          <Link key={item.label} href={item.href} style={{ textDecoration: 'none' }}>
-            <div style={{ background: '#fff', border: `1px solid ${S.border}`,
-              borderRadius: 12, padding: '1.25rem', height: '100%' }}>
-              <div style={{ fontSize: 24, marginBottom: '.5rem' }}>{item.icon}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: S.navy, marginBottom: '.25rem' }}>{item.label}</div>
-              <div style={{ fontSize: 12, color: S.muted }}>{item.desc}</div>
-            </div>
-          </Link>
-        ))}
+        {!isPremium && (
+          <Link href="/pricing" style={{
+            background: S.brand, color: '#fff',
+            padding: '9px 18px', borderRadius: 8,
+            fontSize: 13, fontWeight: 700, textDecoration: 'none',
+            whiteSpace: 'nowrap'
+          }}>Upgrade to Premium ₹499/yr</Link>
+        )}
       </div>
 
-      {/* Profile setup prompt if incomplete */}
-      {!profile?.college_id && (
-        <div style={{ background: S.off, border: `1px solid ${S.border}`,
-          borderRadius: 12, padding: '1.25rem', textAlign: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: S.navy, marginBottom: '.5rem' }}>
-            Complete your profile
+      {/* Quick action cards */}
+      <div style={{ display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: '1rem', marginBottom: '2rem' }}>
+
+        <Link href={semLink} style={{ textDecoration: 'none' }}>
+          <div style={{ background: '#fff', border: `1.5px solid ${S.brand}`,
+            borderRadius: 12, padding: '1.25rem', height: '100%' }}>
+            <div style={{ fontSize: 26, marginBottom: '.5rem' }}>📝</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: S.navy }}>
+              My Notes
+            </div>
+            <div style={{ fontSize: 12, color: S.muted, marginTop: '.25rem' }}>
+              {course} · Sem {sem}
+            </div>
+            <div style={{ fontSize: 12, color: S.brand, fontWeight: 600, marginTop: '.75rem' }}>
+              Open →
+            </div>
           </div>
-          <p style={{ fontSize: 13, color: S.muted, marginBottom: '1rem' }}>
-            Tell us your college, course and semester to get personalised content.
-          </p>
-          <Link href="/dashboard/profile" style={{
-            background: S.brand, color: '#fff', padding: '9px 18px',
-            borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none'
-          }}>Set Up Profile</Link>
+        </Link>
+
+        <Link href={`${semLink}?tab=pyq`} style={{ textDecoration: 'none' }}>
+          <div style={{ background: '#fff', border: `1px solid ${S.border}`,
+            borderRadius: 12, padding: '1.25rem', height: '100%' }}>
+            <div style={{ fontSize: 26, marginBottom: '.5rem' }}>📋</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: S.navy }}>Previous Year Questions</div>
+            <div style={{ fontSize: 12, color: S.muted, marginTop: '.25rem' }}>
+              {course} · Sem {sem}
+            </div>
+            <div style={{ fontSize: 12, color: S.brand, fontWeight: 600, marginTop: '.75rem' }}>
+              Open →
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/dashboard/attendance" style={{ textDecoration: 'none' }}>
+          <div style={{ background: '#fff', border: `1px solid ${S.border}`,
+            borderRadius: 12, padding: '1.25rem', height: '100%' }}>
+            <div style={{ fontSize: 26, marginBottom: '.5rem' }}>✅</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: S.navy }}>Attendance Tracker</div>
+            <div style={{ fontSize: 12, color: S.muted, marginTop: '.25rem' }}>
+              Stay above 75%
+            </div>
+            <div style={{ fontSize: 12, color: S.brand, fontWeight: 600, marginTop: '.75rem' }}>
+              Open →
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/dashboard/timetable" style={{ textDecoration: 'none' }}>
+          <div style={{ background: '#fff', border: `1px solid ${S.border}`,
+            borderRadius: 12, padding: '1.25rem', height: '100%' }}>
+            <div style={{ fontSize: 26, marginBottom: '.5rem' }}>📅</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: S.navy }}>My Timetable</div>
+            <div style={{ fontSize: 12, color: S.muted, marginTop: '.25rem' }}>
+              {college}
+            </div>
+            <div style={{ fontSize: 12, color: S.brand, fontWeight: 600, marginTop: '.75rem' }}>
+              Open →
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* Browse all semesters for their course */}
+      <div style={{ background: '#fff', border: `1px solid ${S.border}`,
+        borderRadius: 12, padding: '1.5rem' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: S.navy, marginBottom: '1rem' }}>
+          All Semesters — {course}
         </div>
-      )}
+        <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+          {[1,2,3,4,5,6].map(s => (
+            <Link key={s} href={`/courses/${courseId}/${s}`} style={{ textDecoration: 'none' }}>
+              <div style={{
+                padding: '10px 18px', borderRadius: 8,
+                border: `1.5px solid ${s === sem ? S.brand : S.border}`,
+                background: s === sem ? '#FFF8F5' : S.off,
+                color: s === sem ? S.brand : S.muted,
+                fontSize: 14, fontWeight: s === sem ? 700 : 500,
+                cursor: 'pointer'
+              }}>
+                Sem {s} {s === sem ? '← You are here' : ''}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
     </div>
   )
 }
