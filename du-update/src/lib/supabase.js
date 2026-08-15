@@ -1,8 +1,9 @@
-import { createClient as _create } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
   if (!url || !key) {
     return {
       auth: {
@@ -20,5 +21,8 @@ export function createClient() {
       }),
     }
   }
-  return _create(url, key)
+
+  // createBrowserClient stores session in COOKIES not localStorage
+  // This makes it readable by server components
+  return createBrowserClient(url, key)
 }
