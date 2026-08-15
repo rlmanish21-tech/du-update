@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-
+export const dynamic = 'force-dynamic'
 const S = {
   navy: '#0F2044', brand: '#FF6B35',
   border: '#DCE4F5', muted: '#8898B8', error: '#dc2626'
