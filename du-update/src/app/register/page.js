@@ -90,7 +90,7 @@ export default function RegisterPage() {
       }
 
       setLoading(false)
-      router.push('/dashboard')
+      window.location.href = '/dashboard'
     } catch (err) {
       setLoading(false)
       setError('Something went wrong. Please try again.')
