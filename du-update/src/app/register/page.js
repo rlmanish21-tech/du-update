@@ -29,30 +29,34 @@ export default function RegisterPage() {
 
     setLoading(true)
 
-    // Step 1 — create account
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name.trim() } }
-    })
+    // 1. Create auth account
+    const { data: signUpData, error: signUpError } =
+      await supabase.auth.signUp({ email, password })
 
     if (signUpError) {
       setLoading(false)
       return setError(signUpError.message)
     }
 
-    // Step 2 — sign in immediately
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email, password
-    })
-
-    setLoading(false)
+    // 2. Sign in to get a session
+    const { error: signInError } =
+      await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError) {
+      setLoading(false)
       return setError('Account created! Please login.')
     }
 
-    // Step 3 — go to onboarding to pick college/course/semester
+    // 3. Now authenticated — insert user row safely
+    const userId = signUpData?.user?.id
+    if (userId) {
+      await supabase.from('users').insert({
+        id:   userId,
+        name: name.trim(),
+      })
+    }
+
+    setLoading(false)
     router.push('/onboarding')
     router.refresh()
   }
@@ -86,7 +90,9 @@ export default function RegisterPage() {
           </div>
           <div style={{ fontSize: 13, color: S.muted, marginTop: '.3rem' }}>
             Already registered?{' '}
-            <Link href="/login" style={{ color: S.brand, fontWeight: 600 }}>Login</Link>
+            <Link href="/login" style={{ color: S.brand, fontWeight: 600 }}>
+              Login
+            </Link>
           </div>
         </div>
 
