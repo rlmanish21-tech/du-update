@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabaseServer'
 import Link from 'next/link'
-
+export const dynamic = 'force-dynamic'
 const S = { navy:'#0F2044', brand:'#FF6B35', border:'#DCE4F5', muted:'#8898B8', off:'#F7F9FF', gold:'#F7C948' }
 
 export const metadata = { title: 'Dashboard — DU Update' }
